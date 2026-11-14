@@ -174,8 +174,15 @@ def naver_fund(code):
 
 def fetch_fundamentals(sym, price):
     tk = yf.Ticker(sym)
-    info = tk.info or {}
-    if not info.get("marketCap") and not info.get("trailingPE") and not info.get("priceToBook"):
+    is_kr = sym.endswith((".KS", ".KQ"))
+    try:
+        info = tk.info or {}
+    except Exception:
+        if not is_kr:
+            raise
+        info = {}
+    nv = naver_fund(sym.split(".")[0]) if is_kr else {}
+    if not info.get("marketCap") and not info.get("trailingPE") and not info.get("priceToBook") and not nv:
         raise RuntimeError("빈 응답")
     div_rate = num(info.get("trailingAnnualDividendRate")) or num(info.get("dividendRate"))
     div = (div_rate / price) if (div_rate and price) else None
@@ -215,8 +222,7 @@ def fetch_fundamentals(sym, price):
         "analysts": num(info.get("numberOfAnalystOpinions")),
         "earn": earn,
     }
-    if sym.endswith((".KS", ".KQ")):
-        f.update(naver_fund(sym.split(".")[0]))
+    f.update(nv)
     news = []
     try:
         news = parse_news(tk.news)
