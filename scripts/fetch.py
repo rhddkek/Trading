@@ -10,8 +10,10 @@ import datetime as dt
 import json
 import math
 import os
+import re
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 import yfinance as yf
@@ -131,13 +133,65 @@ def parse_news(items):
     return out
 
 
+NAVER = {"ok": True, "fail": 0, "shown": False}
+
+
+def naver_fund(code):
+    """한국 종목의 PER·PBR·배당수익률·추정PER 을 네이버 증권에서 보강한다(Yahoo 값이 부정확한 경우가 많음)."""
+    if not NAVER["ok"]:
+        return {}
+    try:
+        req = urllib.request.Request(
+            f"https://m.stock.naver.com/api/stock/{code}/integration",
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://m.stock.naver.com/"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            j = json.load(r)
+        infos = j.get("totalInfos") or []
+        if not NAVER["shown"]:
+            NAVER["shown"] = True
+            print("[네이버] 응답 예시:", json.dumps([[i.get("code"), i.get("value")] for i in infos], ensure_ascii=False)[:600])
+        out = {}
+        key = {"per": "pe", "pbr": "pbr", "cnsPer": "fpe", "dividendYieldRatio": "div"}
+        for it in infos:
+            k = key.get(it.get("code"))
+            m = re.search(r"-?[\d,]+(?:\.\d+)?", str(it.get("value") or ""))
+            if not k or not m:
+                continue
+            v = num(m.group(0).replace(",", ""))
+            if v is None:
+                continue
+            out[k] = v / 100.0 if k == "div" else v
+        NAVER["fail"] = 0
+        return out
+    except Exception as e:
+        NAVER["fail"] += 1
+        if NAVER["fail"] >= 5:
+            NAVER["ok"] = False
+            print(f"[네이버] 연속 실패로 이번 실행에서는 사용 안 함: {e}")
+        return {}
+
+
 def fetch_fundamentals(sym, price):
     tk = yf.Ticker(sym)
     info = tk.info or {}
     if not info.get("marketCap") and not info.get("trailingPE") and not info.get("priceToBook"):
         raise RuntimeError("빈 응답")
-    div_rate = num(info.get("dividendRate"))
+    div_rate = num(info.get("trailingAnnualDividendRate")) or num(info.get("dividendRate"))
     div = (div_rate / price) if (div_rate and price) else None
+    if div is not None and div > 0.2:  # 명백한 데이터 오류
+        div = None
+    pe, pbr = num(info.get("trailingPE")), num(info.get("priceToBook"))
+    eps, bv = num(info.get("trailingEps")), num(info.get("bookValue"))
+    if pe is None and eps and price:
+        pe = price / eps
+    if pbr is None and bv and bv > 0 and price:
+        pbr = price / bv
+    revg, epsg = num(info.get("revenueGrowth")), num(info.get("earningsGrowth"))
+    if revg is not None and revg > 3:
+        revg = None
+    if epsg is not None and epsg > 20:
+        epsg = None
     de = num(info.get("debtToEquity"))
     earn = None
     for key in ("earningsTimestampStart", "earningsTimestamp"):
@@ -146,13 +200,13 @@ def fetch_fundamentals(sym, price):
             earn = dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m-%d")
             break
     f = {
-        "pe": num(info.get("trailingPE")),
+        "pe": pe,
         "fpe": num(info.get("forwardPE")),
-        "pbr": num(info.get("priceToBook")),
+        "pbr": pbr,
         "roe": num(info.get("returnOnEquity")),
         "opm": num(info.get("operatingMargins")),
-        "revg": num(info.get("revenueGrowth")),
-        "epsg": num(info.get("earningsGrowth")),
+        "revg": revg,
+        "epsg": epsg,
         "de": (de / 100.0) if de is not None else None,
         "div": div,
         "mcap": num(info.get("marketCap")),
@@ -161,6 +215,8 @@ def fetch_fundamentals(sym, price):
         "analysts": num(info.get("numberOfAnalystOpinions")),
         "earn": earn,
     }
+    if sym.endswith((".KS", ".KQ")):
+        f.update(naver_fund(sym.split(".")[0]))
     news = []
     try:
         news = parse_news(tk.news)

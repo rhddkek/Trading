@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force:
+        description: 재무지표 전체 다시 수집
+        type: boolean
+        default: false
   schedule:
     # 한국장 09:00~15:59 KST (UTC 00~06시), 평일
     - cron: "3,23,43 0-6 * * 1-5"
@@ -24,7 +29,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,7 +43,7 @@ jobs:
       - name: 시세·재무 수집
         run: |
           mkdir -p site/data
-          python scripts/fetch.py --prev prev.json --out site/data/stocks.json
+          python scripts/fetch.py --prev prev.json --out site/data/stocks.json ${{ inputs.force && '--force-fund' || '' }}
       - name: 배포 (gh-pages)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
