@@ -308,7 +308,7 @@ const SCREENS=[
  {k:'newhigh',name:'신고가 근접',tip:'52주 최고가 대비 −3% 이내'},
  {k:'gcross',name:'골든크로스',tip:'최근 5거래일 안에 20일선이 60일선을 상향 돌파'},
  {k:'leader',name:'성장 주도주',tip:'이익 성장 +25% 이상, RS 80 이상, 52주 고점 −15% 이내'},
- {k:'garp',name:'성장 대비 저평가',tip:'PEG 1.5 이하, ROE 15% 이상'},
+ {k:'garp',name:'성장 대비 저평가',tip:'PEG 1.5 이하, ROE 15% 이상, 매출·이익 성장 플러스'},
  {k:'valdiv',name:'가치 배당',tip:'PER 15 이하, PBR 1.5 이하, 배당수익률 3% 이상'},
  {k:'divpull',name:'배당 눌림목',tip:'배당수익률 1.5% 이상, RSI 40 이하'}
 ];
@@ -325,7 +325,7 @@ function screens(a){
   if(n>=66){const m20=t.ma20s,m60=t.ma60s;for(let i=n-4;i<=n;i++){if(isNum(m60[i-1])&&m20[i-1]<=m60[i-1]&&m20[i]>m60[i]){add('gcross',(n-i===0?'오늘':(n-i)+'거래일 전')+' 20일선이 60일선을 위로 넘어섰습니다.');break;}}}
   if(isNum(f.epsg)&&f.epsg>=0.25&&isNum(a.rs)&&a.rs>=80&&t.fromHi>=-0.15)add('leader','이익 성장 '+pctTxt(f.epsg,0)+', RS '+a.rs.toFixed(0)+', 52주 고점 대비 '+pctTxt(t.fromHi,0)+'.');
   const pe=isNum(f.fpe)&&f.fpe>0?f.fpe:(isNum(f.pe)&&f.pe>0?f.pe:null);
-  if(pe&&isNum(f.epsg)&&f.epsg>0&&isNum(f.roe)&&f.roe>=0.15){const peg=pe/(f.epsg*100);if(peg<=1.5)add('garp','PEG '+peg.toFixed(2)+' (PER '+pe.toFixed(1)+'배 ÷ 이익 성장 '+(f.epsg*100).toFixed(0)+'%), ROE '+(f.roe*100).toFixed(0)+'%.');}
+  if(pe&&isNum(f.epsg)&&f.epsg>0&&isNum(f.revg)&&f.revg>0&&isNum(f.roe)&&f.roe>=0.15){const peg=pe/(f.epsg*100);if(peg<=1.5)add('garp','PEG '+peg.toFixed(2)+' (PER '+pe.toFixed(1)+'배 ÷ 이익 성장 '+(f.epsg*100).toFixed(0)+'%), ROE '+(f.roe*100).toFixed(0)+'%.');}
   if(isNum(f.pe)&&f.pe>0&&f.pe<=15&&isNum(f.pbr)&&f.pbr>0&&f.pbr<=1.5&&isNum(f.div)&&f.div>=0.03)add('valdiv','PER '+f.pe.toFixed(1)+'배, PBR '+f.pbr.toFixed(2)+'배, 배당수익률 '+(f.div*100).toFixed(1)+'%.');
   if(isNum(f.div)&&f.div>=0.015&&isNum(t.rsi)&&t.rsi<=40)add('divpull','배당수익률 '+(f.div*100).toFixed(1)+'%, RSI '+t.rsi.toFixed(0)+'로 눌린 구간입니다.');
   return out;
